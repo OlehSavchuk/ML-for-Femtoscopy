@@ -2,3 +2,10 @@
 Archive.zip
 .ipynb_checkpoints/
 .DS_Store
+
+__pycache__/
+*.pyc
+results/log_*.txt
+results/jobs.txt
+results/eval_levy.txt
+_to_delete/

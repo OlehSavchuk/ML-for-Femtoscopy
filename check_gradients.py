@@ -30,3 +30,17 @@ print('worst rel err',worst)
 # timing
 r=rng.normal(size=(1000,3))*[8,5,5]; q8=qs[np.where(np.linalg.norm(qs,axis=1)>0)[0][::8]]
 t=time.time(); loss_and_grad_r(kern,q8,C[np.where(np.linalg.norm(qs,axis=1)>0)[0][::8]],r); print('step time',time.time()-t, len(q8))
+# 3) SAS flow
+src=SASSource([7,0,-.5],[[70,0,12],[0,27,0],[12,0,30]],n_sas=2)
+for m in src.layers:
+    if isinstance(m,SAS): m.p_d[:]=rng.normal(0,.2,3); m.e[:]=rng.normal(0,.3,3)
+    else: m.p_low[:]=rng.normal(0,.2,3); m.mu[:]=rng.normal(0,.3,3)
+z=rng.standard_normal((200,3))
+r,ca=src.sample(z); L,gr=loss_and_grad_r(kern,q,Cs,r); grads=src.backward(ca,gr)
+worst=0
+for mi,(m,gm) in enumerate(zip(src.params_flat(),grads)):
+    for k,arr in m.items():
+        idx=tuple(rng.integers(0,s) for s in arr.shape)
+        h=1e-5; old=arr[idx]; arr[idx]=old+h; lp=lossf(); arr[idx]=old-h; lm=lossf(); arr[idx]=old
+        fd=(lp-lm)/(2*h); an=gm[k][idx]; rel=abs(fd-an)/(abs(fd)+abs(an)+1e-12); worst=max(worst,rel)
+print('SAS flow worst rel err',worst)

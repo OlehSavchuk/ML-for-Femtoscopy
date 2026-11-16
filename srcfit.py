@@ -4,10 +4,12 @@ srcfit.py - fit a 3D femtoscopic source S(r) to a measured correlation function 
 Model:  C(q_j) ~ (1/N) sum_n K(|q_j|, |r_n|, angle(q_j, r_n)),   r_n ~ S
 K is the tabulated kernel (Kl-ppiplus.dat) on a regular (|q|, |r|, theta) grid.
 
-Two parametrisations of S are provided, both with analytic gradients (pure numpy):
-  * GaussianSource : r = L z + mu            (z ~ N(0, I), L lower-triangular, positive diagonal)
-  * RealNVPSource  : r = A(RealNVP(z))       (affine coupling layers, then the same affine map)
-With zero-initialised coupling layers the RealNVP model starts exactly at the Gaussian one.
+Parametrisations of S (all with analytic gradients, pure numpy):
+  * Source(n_coupling=0) : Gaussian  r = L z + mu   (z ~ N(0, I) or Levy-stable, L lower-triangular, positive diagonal)
+  * Source(n_coupling=k) : RealNVP   r = A(coupling_k(...coupling_1(z)))   (affine couplings, then the affine map)
+  * SASSource            : short flow of sinh-arcsinh bijectors between full linear maps (skewness + tail weight)
+The latent z is Gaussian by default; set src.alpha < 2 for a Levy-stable base (sample_base).
+All start exactly at the Gaussian model (zero-initialised couplings, identity SAS).
 
 This mirrors the TensorFlow notebook (flow-optimizer.ipynb) but runs without TensorFlow and
 is what produced the numbers in results/.
@@ -104,6 +106,21 @@ def loss_and_grad_r(kern, qs, C, r):
 
 
 # ----------------------------------------------------------------------------- models
+def sample_base(rng, n, alpha=2.0, dim=3):
+    """Latent distribution: i.i.d. symmetric alpha-stable (Levy-stable) components, Chambers-Mallows-Stuck sampling,
+    scale chosen so that alpha = 2 is exactly the standard normal. alpha < 2 gives power-law tails (infinite variance),
+    alpha = 1 is a Cauchy distribution. The fitted source is then  r = flow(z), z ~ Levy-stable."""
+    if alpha >= 2.0:
+        return rng.standard_normal((n, dim))
+    V = rng.uniform(-np.pi / 2, np.pi / 2, (n, dim))
+    W = rng.exponential(1.0, (n, dim))
+    if abs(alpha - 1.0) < 1e-9:
+        x = np.tan(V)
+    else:
+        x = (np.sin(alpha * V) / np.cos(V) ** (1 / alpha)) * (np.cos((1 - alpha) * V) / W) ** ((1 - alpha) / alpha)
+    return x / np.sqrt(2.0)
+
+
 def softplus(x):
     return np.logaddexp(0, x)
 
@@ -215,6 +232,47 @@ class Source:
         return [m.params() for m in self.modules()]
 
 
+class SAS:
+    """Element-wise sinh-arcsinh bijector (Jones & Pewsey): y = sinh(d * asinh(x) + e), d = exp(p_d) > 0.
+    e controls the skewness, d the tail weight (d > 1 heavier tails, d < 1 lighter); d = 1, e = 0 is the identity.
+    It maps a Gaussian onto skewed / heavy-tailed marginals with only 2 parameters per axis."""
+    VMAX = 12.0
+
+    def __init__(self, dim=3):
+        self.p_d = np.zeros(dim)
+        self.e = np.zeros(dim)
+
+    def params(self):
+        return {"p_d": self.p_d, "e": self.e}
+
+    def forward(self, x):
+        d = np.exp(self.p_d)
+        u = np.arcsinh(x)
+        v = np.clip(d * u + self.e, -self.VMAX, self.VMAX)
+        return np.sinh(v), (x, u, v, d)
+
+    def backward(self, cache, dy):
+        x, u, v, d = cache
+        ch = np.cosh(v)
+        live = (np.abs(d * u + self.e) < self.VMAX)
+        g = {"p_d": (dy * ch * u * d * live).sum(0), "e": (dy * ch * live).sum(0)}
+        return g, dy * ch * d * live / np.sqrt(1 + x * x)
+
+
+class SASSource(Source):
+    """Short flow with non-Gaussian bijectors:  z -> Affine -> SAS -> Affine -> SAS -> Affine(mean, cov0).
+    ~40 parameters; starts exactly at the Gaussian model (SAS = identity, inner affines = identity)."""
+    def __init__(self, mean, cov, n_sas=2, seed=0):
+        self.couplings = []
+        self.affine = Affine(mean, cov)
+        self.layers = []
+        for _ in range(n_sas):
+            self.layers += [Affine([0, 0, 0], np.eye(3)), SAS()]
+
+    def modules(self):
+        return self.layers + [self.affine]
+
+
 class Adam:
     def __init__(self, src, lr=3e-3, b1=0.9, b2=0.999):
         self.src, self.lr, self.b1, self.b2, self.t = src, lr, b1, b2, 0
@@ -239,7 +297,7 @@ def fit(kern, qs, C, src, steps, n_samples=1000, lr=3e-3, seed=1, log_every=100,
     opt = Adam(src, lr=lr)
     hist = []
     for it in range(steps):
-        z = rng.standard_normal((n_samples, 3))
+        z = sample_base(rng, n_samples, getattr(src, 'alpha', 2.0))
         r, caches = src.sample(z)
         L, g_r = loss_and_grad_r(kern, qs, C, r)
         grads = src.backward(caches, g_r)
@@ -256,5 +314,5 @@ def fit(kern, qs, C, src, steps, n_samples=1000, lr=3e-3, seed=1, log_every=100,
 
 
 def sample_source(src, n, seed=123):
-    z = np.random.default_rng(seed).standard_normal((n, 3))
+    z = sample_base(np.random.default_rng(seed), n, getattr(src, 'alpha', 2.0))
     return src.sample(z)[0]
