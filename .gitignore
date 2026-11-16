@@ -1,0 +1,4 @@
+# Archive.zip only duplicates the ppi-*.dat files (and is over 90 MB)
+Archive.zip
+.ipynb_checkpoints/
+.DS_Store
