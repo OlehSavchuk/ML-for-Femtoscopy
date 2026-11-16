@@ -8,7 +8,7 @@ target `C(q)`, using a differentiable regular-grid linear interpolator.
 
 | File | Purpose |
 |---|---|
-| `flow-optimizer.ipynb` | Interpolator, trainable Cholesky/affine bijector flow, loss, Adam training loop |
+| `flow-optimizer.ipynb` | TensorFlow/TFP version: interpolator, Gaussian (Cholesky), RealNVP and **Levy (alpha-stable, trainable alpha and beta per axis)** sources, loss, Adam training loop, comparison with the true source |
 | `65.dat` | Target correlation values, loaded as `true_Cq` and evaluated on a 20x20x20 q-grid (`q_max = 50`) |
 | `ppi-<x>.dat` | Large tabulated data files, one per setting x = 0.54 ... 0.79 (~37 MB each) |
 | `Kl-ppiplus.dat` | Additional tabulated data file (~8 MB) |
