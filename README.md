@@ -21,3 +21,5 @@ Python 3, `tensorflow`, `tensorflow_probability`, `numpy`.
 
 - The seven `ppi-*.dat` files are ~260 MB in total. If the repository gets unwieldy,
   move them to Git LFS or a release asset. `Archive.zip` (a duplicate of those files) is ignored.
+
+Further documentation: [docs/index.md](docs/index.md)
