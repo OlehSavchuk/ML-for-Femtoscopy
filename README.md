@@ -9,6 +9,7 @@ target `C(q)`, using a differentiable regular-grid linear interpolator.
 | File | Purpose |
 |---|---|
 | `flow-optimizer.ipynb` | TensorFlow/TFP version: interpolator, Gaussian (Cholesky), RealNVP and **Levy (alpha-stable, trainable alpha and beta per axis)** sources, loss, Adam training loop, comparison with the true source |
+| `flow-optimizer-torch.ipynb` | PyTorch port of the notebook above (no TensorFlow / TFP): same kernel, loss, Gaussian / RealNVP / Levy / sinh-arcsinh / spline models, density fit and comparison table, plus a per-step timing cell |
 | `65.dat` | Target correlation values, loaded as `true_Cq` and evaluated on a 20x20x20 q-grid (`q_max = 50`) |
 | `ppi-<x>.dat` | Large tabulated data files, one per setting x = 0.54 ... 0.79 (~37 MB each) |
 | `Kl-ppiplus.dat` | Additional tabulated data file (~8 MB) |
@@ -40,3 +41,5 @@ If the kernel dies on `import tensorflow`, run that one-liner in Terminal: the t
 (check `python -c "import platform; print(platform.machine())"` prints `arm64`), a second OpenMP runtime (`OMP: Error #15`; last-resort workaround
 `KMP_DUPLICATE_LIB_OK=TRUE`, commented out in the first notebook cell), or Keras 3 without `tf-keras` (TFP then fails to import).
 The NumPy code (`srcfit.py`, `train.py`) does not need any of this.
+
+The PyTorch notebook needs only `pip install torch numpy matplotlib jupyter`; it avoids the TensorFlow, Keras 3 and TFP version problems described above.
