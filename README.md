@@ -23,3 +23,20 @@ Python 3, `tensorflow`, `tensorflow_probability`, `numpy`.
   move them to Git LFS or a release asset. `Archive.zip` (a duplicate of those files) is ignored.
 
 Further documentation: [docs/index.md](docs/index.md)
+
+## Running `flow-optimizer.ipynb` (TensorFlow notebook)
+
+The notebook needs TensorFlow **and** TensorFlow Probability, and TFP only works with the legacy Keras 2 package:
+
+```bash
+python3.11 -m venv tfenv && source tfenv/bin/activate          # a fresh venv; 3.11 or 3.12 are the safest Python versions for TF
+pip install tensorflow tensorflow-probability tf-keras numpy matplotlib jupyter ipykernel
+python -c "import tensorflow as tf, tensorflow_probability as tfp; print(tf.__version__, tfp.__version__)"   # run this in Terminal first
+python -m ipykernel install --user --name tfenv && jupyter lab   # pick the `tfenv` kernel
+```
+
+If the kernel dies on `import tensorflow`, run that one-liner in Terminal: the traceback or abort message shows the real cause
+(a notebook kernel hides it). Typical causes: a Python/TF version mismatch, an x86_64 Python running under Rosetta on an Apple-silicon Mac
+(check `python -c "import platform; print(platform.machine())"` prints `arm64`), a second OpenMP runtime (`OMP: Error #15`; last-resort workaround
+`KMP_DUPLICATE_LIB_OK=TRUE`, commented out in the first notebook cell), or Keras 3 without `tf-keras` (TFP then fails to import).
+The NumPy code (`srcfit.py`, `train.py`) does not need any of this.
